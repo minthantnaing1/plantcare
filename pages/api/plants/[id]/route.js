@@ -4,60 +4,36 @@ export default async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-
-  const { id } = req.query; // dynamic parameter from URL
+  const { id } = req.query;
   const plantId = Number(id);
-
   if (isNaN(plantId)) {
     return res.status(400).json({ error: "Invalid plant ID" });
   }
-
   let connection;
   try {
     connection = await connectToDB();
-
-    // Fetch plant details using named parameter binding
-    const plantResult = await connection.execute(
-      "SELECT PLANT_ID, NAME, SPECIES FROM PLANT WHERE PLANT_ID = :id",
+    const result = await connection.execute(
+      `SELECT Plant_ID, Plant_Name, Species, Watering_Frequency, Fertilizing_Frequency, LeafCleaning_Frequency, Description 
+       FROM Plant 
+       WHERE Plant_ID = :id`,
       { id: plantId }
     );
-
-    if (!plantResult.rows || plantResult.rows.length === 0) {
+    await connection.close();
+    if (!result.rows || result.rows.length === 0) {
       return res.status(404).json({ error: "Plant not found" });
     }
-
-    // Fetch associated reminders
-    const reminderResult = await connection.execute(
-      "SELECT TASK_NAME, DESCRIPTION, FREQUENCY FROM REMINDER WHERE PLANT_ID = :id",
-      { id: plantId }
-    );
-
-    const plantRow = plantResult.rows[0];
+    const row = result.rows[0];
     const plant = {
-      PLANT_ID: plantRow[0],
-      NAME: plantRow[1],
-      SPECIES: plantRow[2],
-      REMINDERS: (reminderResult.rows || []).map(row => ({
-        TASK_NAME: row[0],
-        DESCRIPTION: row[1],
-        FREQUENCY: row[2]
-      }))
+      PLANT_ID: row[0],
+      PLANT_NAME: row[1],
+      SPECIES: row[2],
+      WATERING_FREQUENCY: row[3],
+      FERTILIZING_FREQUENCY: row[4],
+      LEAFCLEANING_FREQUENCY: row[5],
+      DESCRIPTION: row[6]
     };
-
     return res.status(200).json(plant);
-    
   } catch (error) {
-    return res.status(500).json({
-      error: "Database connection failed",
-      details: error.message
-    });
-  } finally {
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (err) {
-        console.error("Failed to close connection:", err);
-      }
-    }
+    return res.status(500).json({ error: "Database error", details: error.message });
   }
 }
